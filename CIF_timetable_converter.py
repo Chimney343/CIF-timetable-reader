@@ -116,6 +116,8 @@ def get_journey_data(signature):
         if record_identity != 'QS' and 'time' in key:
             value = datetime.datetime.strptime(value, "%H%M").time()
         d[key] = value
+    if record_identity == 'QS':
+        d['unique_identifier'] = d['operator'] + d['unique_journey_identifier']
     return d
 
 
@@ -143,14 +145,9 @@ def create_journey_timetable(id_list, journey_header, raw_timetable):
     :param service_id: journey name/header
     :return: list of dictionaries containing information on stops in a particular journey
     """
-    # Extract data from journey head - service_id, operator, and keys containing information on service days.
-    service_id = journey_header['unique_id']
-    operator = journey_header['operator']
-    route_number = journey_header['route_number_(identifier)']
-    school_term_time = journey_header['school_term_time']
-    bank_holidays = journey_header['bank_holidays']
-    route_direction = journey_header['route_direction']
-    operates_on = {key: value for (key, value) in journey_header.items() if 'operates_on' in key}
+    # Extract data from journey head - get everything except record identity
+    journey_header_data = {key: value for (key, value) in journey_header.items() if not 'record_identity' in key}
+
     # Set up a dictionary container.
     timetable = []
     if len(id_list) > 2:
@@ -192,7 +189,7 @@ def create_journey_timetable(id_list, journey_header, raw_timetable):
     #     Add journey data to each stop - like service id, operator, and operating days.
     for stop in timetable:
         stop['has_duplicated_stops'] = has_duplicates
-        stop = stop.update(journey_header)
+        stop = stop.update(journey_header_data)
 
     return timetable
 
@@ -264,11 +261,12 @@ def main():
         df = df[[
             'record_identity',
             'operator',
-            'location',
-            'unique_id',
+            'unique_journey_identifier',
+            'unique_identifier',
             'route_number_(identifier)',
             'route_direction',
             'has_duplicated_stops',
+            'location',
             'published_arrival_time',
             'published_departure_time',
             'next_stop_id',
@@ -280,6 +278,8 @@ def main():
             'operates_on_fridays',
             'operates_on_saturdays',
             'operates_on_sundays',
+            'first_date_of_operation',
+            'last_date_of_operation',
             'school_term_time',
             'activity_flag',
             'bank_holidays',
