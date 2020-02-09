@@ -6,6 +6,8 @@ ATCO-CIF (.cif) is the default file format of choice that UK Public transport au
 
 **CIF_data** folder contains example .cif files with timetables for different modes of travel in Scotland inbetween 1.07.2019 and 7.07.2019. 
 
+**stop_frequency_counter.py** - given the output timetable from cif-timetable-reader.py, you can use it to analyze journey frequency on particular bus stops in a given timeframe.
+
 The official document with parsing instructions is contained within atco-cif-spec1.pdf document.
 
 - **USAGE:** 
