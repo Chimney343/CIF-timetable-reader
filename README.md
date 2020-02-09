@@ -16,4 +16,4 @@ Open the cif-timetable-reader.py and adjust the path to folder with .cif files y
 
  - **TODO:**
  - [ ] Add more .cif prefixes like notes on specific journeys (QN .cif record prefix)
-- [ ] Add option to create shapefiles with stops (each .cif file contains information on stop coordinates)
+- [x] Add option to create shapefiles with stops (each .cif file contains information on stop coordinates)
