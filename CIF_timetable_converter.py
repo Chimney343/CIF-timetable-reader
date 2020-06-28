@@ -1,11 +1,16 @@
 """
 CIF_timetable_converter.py
+
+Analyze raw .cif files and convert them into .csv timetables proper. The only parameter
+to adjust is the path to .cif file folder below and the output folder.
+
 """
 
 paths = {
-    'cif':
-        '..\\TRACC Data\PT Timetable Data'
+    'cif': r'C:\Users\kominem\Jacobs\STPR2 - TRACC\TRACC_COVID19 Support\Timetables',
+    'output': r'C:\Users\kominem\Jacobs\STPR2 - TRACC\TRACC_COVID19 Support\Timetables\Traveline',
 }
+
 
 # Do not edit below this point!
 # ===================================================================================================
@@ -111,13 +116,13 @@ def get_journey_data(signature):
     for key in specification.keys():
         start = specification[key][1] - 1
         end = start + specification[key][0]
-        value = signature[start:end]
+        value = signature[start:end].strip()
         # Convert arrival and departure times to proper datetime objects.
         if record_identity != 'QS' and 'time' in key:
             value = datetime.datetime.strptime(value, "%H%M").time()
         d[key] = value
     if record_identity == 'QS':
-        d['unique_identifier'] = d['operator'] + d['unique_journey_identifier']
+        d['unique_identifier'] = str(d['operator']) + str(d['unique_journey_identifier'])
     return d
 
 
@@ -183,10 +188,10 @@ def create_journey_timetable(id_list, journey_header, raw_timetable):
 
     # Check for duplicated stops
     if check_duplicate_stops(timetable):
-        stop['has_duplicated_stops'] = 1
+        has_duplicates = 1
     else:
-        stop['has_duplicated_stops'] = 0
-    #     Add journey data to each stop - like service id, operator, and operating days.
+        has_duplicates = 0
+    #     Add journey data to each stop.
     for stop in timetable:
         stop['has_duplicated_stops'] = has_duplicates
         stop = stop.update(journey_header_data)
@@ -242,21 +247,32 @@ def main():
     # Clock starts.
     START = time.time()
     path = paths['cif']
+    print("Checking directory tree.")
+    if not os.path.exists(paths['output']):
+        os.mkdir(os.path.join(paths['output']))
+    if not os.path.exists(os.path.join(paths['output'], 'duplicates')):
+        os.mkdir(os.path.join(paths['output'], 'duplicates'))
+            
     print("CIF Timetable conversion commencing.\nAnalyzing files in: {}".format(path))
-
     filepaths = [os.path.join(path, file) for file in os.listdir(path) if file.endswith('.cif')]
     print(".cif file list:\n", *filepaths, sep="\n")
     for i, file in enumerate(filepaths):
         start = time.time()
         print("\nAnalyzing: {}".format(file))
         output_filename = file.split('\\')[-1].split('.')[0] + '_timetable.csv'
-        output_path = path
         # Open the .cif file.
         f = open(filepaths[i], "r")
         # Process the data.,
         raw_timetable = extract_raw_timetable(f)
         timetable = process_raw_timetable(raw_timetable)
         df = pd.DataFrame(timetable)
+        # Check for duplicate entries.
+        duplicates = df[df.duplicated()]
+        if not duplicates.empty:
+            duplicates_filename = file.split('\\')[-1].split('.')[0] + '_duplicates.csv'
+            duplicates.to_csv(os.path.join(paths['output'], 'duplicates', duplicates_filename))
+        df.drop_duplicates(inplace=True)
+
         # Rearrange columns.
         df = df[[
             'record_identity',
@@ -290,9 +306,22 @@ def main():
             'fare_stage_indicator',
             'timing_point_indicator',
         ]]
-        # Save to .csv
-        print('Saving: {}'.format(output_filename))
-        df.to_csv(os.path.join(output_path, output_filename), index=False)
+
+        # Exclude records with first date of operation exceeding today.
+        df['first_date_of_operation'] = pd.to_datetime(df['first_date_of_operation'])
+        df = df[df['first_date_of_operation'] < datetime.datetime.now()]
+        # Safeguard against routes listed as 'UNKN'; "unknown".
+        df.loc[(df['route_number_(identifier)'] == 'UNKN'),'route_number_(identifier)']=df['unique_identifier']
+        # Split timetable by vehicle type and save each vehicle type individually.
+        for mode in df['vehicle_type'].unique():
+            temp_df = df[df['vehicle_type'] == mode]
+            output_filename = file.split('\\')[-1].split('.')[0] + '_{}_timetable.csv'.format(mode)
+            print('Saving {} timetable:\n{}'.format(mode, os.path.join(paths['output'], output_filename)))
+            temp_df.to_csv(os.path.join(paths['output'], output_filename), index=False)
+            try:
+                temp_df.to_excel(os.path.join(paths['output'], output_filename.replace('.csv', '.xlsx')), index=False)
+            except:
+                print("Error writing {} timetable to excel.".format(mode))
 
         print('Runtime: {0:.2f}'.format(time.time() - start))
 
